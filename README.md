@@ -4,6 +4,8 @@ A small Node.js script that builds a daily network digest from Graylog, optional
 
 I use this tool to give me a quick summary of what happened in the network during the off hours to help identify any glaring issues for the day.
 
+![Example Slack digest](ExampleOutput.png)
+
 ## What It Looks At
 
 - Graylog syslog for routing, config changes, reboots, crashes, link events, logins, and other device logs.
