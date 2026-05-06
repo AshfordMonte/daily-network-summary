@@ -1,0 +1,32 @@
+# Runtime secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies and package-manager caches
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime output
+*.log
+logs/
+tmp/
+tmp-*/
+
+# Local Dude / Zabbix / Graylog exports and database backups
+dude-*
+*.tgz
+*.tar
+*.tar.gz
+*.db
+*.sqlite
+*.sqlite3
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
