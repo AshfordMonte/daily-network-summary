@@ -12,9 +12,11 @@ Context:
 - Zabbix events are split into daily changed events and a small capped longstandingActive list.
 - Graylog is the source of device log, routing log, authentication, and configuration-change context.
 - Zabbix is the source of radio backhaul health, reachability, packet loss, bandwidth/interface utilization, temperature, power, and interface status context.
+- Treat Graylog and Zabbix as complementary report inputs, not as systems that must confirm or contradict each other.
 - The environment includes MikroTik routers, Netonix switches, backhauls, and core infrastructure.
 - Most tower sites are connected by wireless point-to-point backhaul links.
 - OSPF drops on tower/backhaul paths are often caused by power issues, storm-related interference, RF path degradation, or a tower/site going offline.
+- "Above 50 dB" in Zabbix radio/backhaul context is a normal watch threshold for link health. Mention it as a watch item, not an outage by itself.
 - Existing real-time Slack alerts already handle urgent BGP and OSPF events.
 - This report is a daily morning digest.
 - Do not exaggerate impact.
@@ -31,10 +33,9 @@ Focus on:
 - repeated errors from the same device
 - suspicious authentication or config activity
 - correlations between OSPF drops and wireless backhaul/interface flaps at tower sites
-- correlations between Graylog syslog events and Zabbix problems in the same window
-- daily changed Zabbix events first; longstandingActive Zabbix problems only when they are high/disaster severity or explain Graylog events
+- daily changed Zabbix events first; longstandingActive Zabbix problems only when they are high/disaster severity or meaningful radio/backhaul health context
 - knownPath and knownSites fields when present; use those to translate loopback IPs into site names
-- topologyNeighbors when present; use them as context for likely adjacent backhaul paths, not as proof of the failed link
+- topologyNeighbors when present; use them only as background topology context, not as proof that the neighbor had an outage
 
 Ignore or minimize:
 - DHCP noise
@@ -46,7 +47,7 @@ Ignore or minimize:
 
 Output format:
 *Daily Network Syslog Summary*
-Window: \`<from> to <to>\`
+Window: \`<displayWindow.from> to <displayWindow.to>\`
 
 *Overall*
 - 1 to 2 bullets
@@ -80,12 +81,13 @@ Formatting rules:
 - Never say "No notable..." in a section that also contains a real event for that same section.
 - Prefer a short positive finding over a contradictory no-event statement.
 - If an event includes knownPath, describe the relationship as *knownPath.from* :left_right_arrow: *knownPath.to* instead of using only the loopback IP.
-- If Zabbix shows an active or resolved outage/packet-loss/interface problem that lines up with syslog, mention that correlation briefly.
-- If Zabbix has no matching problem for a noisy syslog flap, you may say "no matching Zabbix outage" only when it is useful.
+- If an event only has topologyNeighbors, do not say the neighbor should have reported an outage. For a single local interface flap, describe the local interface and optionally say it is on a path toward the neighbor.
+- Do not write "no matching Zabbix outage/problem" or otherwise compare the tools just to prove one did not confirm the other.
+- Mention a Graylog/Zabbix relationship only when both clearly describe the same site, device, interface, or backhaul event.
 - Treat zabbix.events as new/changed problems in the report window. Use them mainly in Device Health or Interfaces / Backhaul.
-- Treat zabbix.longstandingActive as chronic background context. Do not headline it unless it is high/disaster severity, directly correlates with Graylog activity, or is a meaningful radio/backhaul health issue.
+- Treat zabbix.longstandingActive as chronic background context. Do not headline it unless it is high/disaster severity or a meaningful radio/backhaul health issue.
 - Do not say "multiple longstanding Zabbix warnings remain" unless one of those warnings is important enough to name specifically.
-- Do not dump every Zabbix problem; summarize only the events that explain or change the meaning of the Graylog digest.
+- Do not dump every Zabbix problem; summarize only the Zabbix events that are operationally useful for the digest.
 - Bold device names, site names, and important interface names with Slack mrkdwn.
 - For site-to-site or device-to-device relationships, use exactly *Site A* :left_right_arrow: *Site B* when it improves scanning.
 - Never start a bullet or relationship phrase with :left_right_arrow:.

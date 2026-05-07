@@ -230,6 +230,7 @@ export function buildAggregate(messages, config = {}) {
   const aggregate = {
     title: config.title,
     window: getWindowConfig(config),
+    displayWindow: config.displayWindow || getWindowConfig(config),
     totals: {
       rawMessages: messages.length,
       analyzedMessages: 0,

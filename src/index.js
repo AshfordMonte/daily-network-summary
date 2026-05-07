@@ -5,7 +5,7 @@ import { buildAggregate } from './classify.js';
 import { formatSlackMessage } from './format.js';
 import { DEFAULT_GRAYLOG_FIELDS, searchGraylogMessages } from './graylog.js';
 import { getMockMessages, getMockZabbixContext } from './mock-data.js';
-import { calculateReportWindow } from './report-window.js';
+import { calculateReportWindow, formatReportWindowForDisplay } from './report-window.js';
 import { DEFAULT_SEARCH_QUERY } from './search-query.js';
 import { postToSlack } from './slack.js';
 import { summarizeNetworkEvents } from './summarize.js';
@@ -66,9 +66,10 @@ async function loadZabbixContext(config, window) {
 export async function main() {
   const config = loadConfig();
   const window = calculateReportWindow(config.reportWindowHours);
+  const displayWindow = formatReportWindowForDisplay(window, config.graylog.timezone);
 
   console.log(
-    `[graylog-ai-digest] Report window: ${window.from} to ${window.to} (${config.graylog.timezone})`
+    `[graylog-ai-digest] Report window: ${displayWindow.from} to ${displayWindow.to}`
   );
 
   const messages = config.mockMode
@@ -96,7 +97,8 @@ export async function main() {
       from: window.from,
       to: window.to,
       timezone: config.graylog.timezone
-    }
+    },
+    displayWindow
   });
   aggregate.zabbix = await loadZabbixContext(config, window);
 

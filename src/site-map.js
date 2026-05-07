@@ -1,4 +1,4 @@
-//Specific to HC Wireless sites
+// Site names and loopbacks are specific to the local HC Wireless topology.
 
 export const LOOPBACK_SITE_MAP = {
   '10.56.3.52': 'JCWT-DP-SW',
