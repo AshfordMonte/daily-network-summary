@@ -75,14 +75,6 @@ npm run dev
 
 The script runs once, posts to Slack, and exits.
 
-## Cron Example
-
-Run every morning at 7:00:
-
-```cron
-0 7 * * * cd /opt/graylog-ai-digest && /usr/bin/node src/index.js >> /var/log/graylog-ai-digest.log 2>&1
-```
-
 ## Notes
 
 Graylog API versions vary. The endpoint is kept near the top of `src/graylog.js` so it is easy to adjust if needed.
