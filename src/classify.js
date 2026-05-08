@@ -15,7 +15,7 @@ const CATEGORY_PATTERNS = {
     /\breboot(?:ed|ing)?\b/i,
     /\bwatchdog\b/i,
     /\bkernel\b/i,
-    /\bfailure\b/i,
+    /\b(?:kernel|hardware|power|fan|memory|cpu|disk|storage)\b.*\bfailure\b/i,
     /\bcrash(?:ed)?\b/i,
     /\bpanic\b/i,
     /\bhardware\b/i,
@@ -86,6 +86,7 @@ const MEDIUM_SEVERITY_PATTERNS = [
   /\bsfp\b.*\b(?:warning|alarm|low|high|fault)\b/i,
   /\b(?:failed login|failed password|authentication failure|login failure)\b/i,
   /\bhardware\b.*\b(?:warning|error|failure)\b/i,
+  /\b(?:script|address-list|firewall)\b.*\b(?:error|failed|failure)\b/i,
   /\broute\b.*\b(?:changed|removed|added|withdrawn)\b/i
 ];
 

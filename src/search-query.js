@@ -21,6 +21,8 @@ export const DEFAULT_SEARCH_QUERY = `(
   telrad OR
   siae OR
   olt OR
+  script OR
+  "address-list" OR
   login OR
   authentication OR
   configuration

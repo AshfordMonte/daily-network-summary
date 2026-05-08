@@ -8,6 +8,7 @@ const SECTION_HEADINGS = [
   'Device Health',
   'Wireless / Backhaul',
   'Security / Admin',
+  'Other Notable Events',
   'Most Active Devices'
 ];
 const SECTION_HEADING_SET = new Set(SECTION_HEADINGS.map((heading) => `*${heading}*`));
@@ -16,6 +17,10 @@ const SECTION_ALIASES = {
   'interfaces / backhaul': 'Wireless / Backhaul',
   'interfaces/backhaul': 'Wireless / Backhaul',
   'wireless/backhaul': 'Wireless / Backhaul',
+  other: 'Other Notable Events',
+  unknown: 'Other Notable Events',
+  'other events': 'Other Notable Events',
+  'other notable': 'Other Notable Events',
   'noisy devices': 'Most Active Devices'
 };
 

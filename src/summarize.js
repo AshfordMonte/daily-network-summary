@@ -66,6 +66,7 @@ Window: \`<displayWindow.from> to <displayWindow.to>\`
 *Device Health*
 - 0 to 2 bullets covering reboots/crashes/watchdogs, Zabbix reachability, temperature, power, or host health.
 - If there are no such events, say "No notable device health or availability events."
+- Do not place login failures, authentication failures, config edits, firewall script errors, or address-list/script failures here unless they clearly caused device health impact.
 
 *Wireless / Backhaul*
 - 0 to 2 bullets covering Graylog interface logs plus Zabbix radio/backhaul/access-sector/OLT health, packet loss, bandwidth, or link status.
@@ -73,6 +74,11 @@ Window: \`<displayWindow.from> to <displayWindow.to>\`
 
 *Security / Admin*
 - 0 to 1 bullets, or "No notable security/admin events."
+- Put login failures, authentication failures, suspicious management access, and config/admin changes here.
+
+*Other Notable Events*
+- 0 to 1 bullets for operationally useful events that do not fit the sections above, such as firewall script errors or address-list/script failures.
+- If there are no such events, omit this section entirely.
 
 *Most Active Devices*
 - 0 to 2 bullets naming devices/sites with the most meaningful activity, otherwise "No standout active devices."
@@ -87,12 +93,15 @@ Formatting rules:
 - Use device names and interface names exactly as provided.
 - Never say "No notable..." in a section that also contains a real event for that same section.
 - Prefer a short positive finding over a contradictory no-event statement.
+- Prefer "no broad outage pattern is evident in the report data" over "no widespread outages reported."
 - If an event includes knownPath, describe the relationship as *knownPath.from* :left_right_arrow: *knownPath.to* instead of using only the loopback IP.
 - If interfaceContext.role is customer_access, describe it as a local customer-facing wireless sector or fiber OLT event. Do not infer an upstream/backhaul neighbor from topology.
 - If interfaceContext.role is backhaul, describe it as a tower/office backhaul event and use knownPath when available.
 - If an event only has topologyNeighbors, do not say the neighbor should have reported an outage. For a single local interface flap, describe only the local interface unless interfaceContext says it is backhaul.
 - Do not write "no matching Zabbix outage/problem" or otherwise compare the tools just to prove one did not confirm the other.
 - Mention a Graylog/Zabbix relationship only when both clearly describe the same site, device, interface, or backhaul event.
+- Authentication/login failures belong in Security / Admin, not Device Health.
+- Firewall script errors and address-list/script failures belong in Other Notable Events unless they are clearly part of a config/admin change.
 - Treat zabbix.events as new/changed problems in the report window. Use them mainly in Device Health or Wireless / Backhaul.
 - Treat zabbix.longstandingActive as chronic background context. Do not headline it unless it is high/disaster severity or a meaningful radio/backhaul health issue.
 - Do not say "multiple longstanding Zabbix warnings remain" unless one of those warnings is important enough to name specifically.
