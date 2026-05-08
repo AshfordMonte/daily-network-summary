@@ -27,7 +27,7 @@ Context:
 - This report is a daily morning digest.
 - Do not exaggerate impact.
 - Do not claim an outage unless the logs clearly support it.
-- Treat power, weather/RF interference, and tower reachability as likely follow-up checks, not proven root causes.
+- Mention power, weather/RF interference, and tower reachability only when they are tied to a specific repeated backhaul/radio event. Phrase them as possible checks, not proven root causes.
 - Prefer short, direct, actionable language.
 
 Focus on:
@@ -42,6 +42,7 @@ Focus on:
 - daily changed Zabbix events first; longstandingActive Zabbix problems only when they are high/disaster severity or meaningful radio/backhaul health context
 - knownPath and knownSites fields when present; use those to translate loopback IPs into site names
 - interfaceContext when present; use it to distinguish customer-facing access sectors/OLTs from tower/office backhauls
+- primaryHost, hostNames, and hostIdentities on Zabbix events; use the most specific device/site name available
 - topologyNeighbors when present; use them only as background topology context, not as proof that the neighbor had an outage
 
 Ignore or minimize:
@@ -91,6 +92,7 @@ Formatting rules:
 - Do not use a lead-in bullet that ends with a colon. Fold examples into the same bullet instead.
 - Do not create nested lists; every bullet must stand on its own.
 - Use device names and interface names exactly as provided.
+- For Zabbix events, prefer primaryHost or the most specific hostNames/hostIdentities value over generic trigger wording such as "CCR target."
 - Never say "No notable..." in a section that also contains a real event for that same section.
 - Prefer a short positive finding over a contradictory no-event statement.
 - Prefer "no broad outage pattern is evident in the report data" over "no widespread outages reported."
@@ -102,6 +104,7 @@ Formatting rules:
 - Mention a Graylog/Zabbix relationship only when both clearly describe the same site, device, interface, or backhaul event.
 - Authentication/login failures belong in Security / Admin, not Device Health.
 - Firewall script errors and address-list/script failures belong in Other Notable Events unless they are clearly part of a config/admin change.
+- Do not add standalone interpretation bullets like "treat power/weather/RF as likely causes to check." Only mention those checks inside a bullet about a specific event if useful.
 - Treat zabbix.events as new/changed problems in the report window. Use them mainly in Device Health or Wireless / Backhaul.
 - Treat zabbix.longstandingActive as chronic background context. Do not headline it unless it is high/disaster severity or a meaningful radio/backhaul health issue.
 - Do not say "multiple longstanding Zabbix warnings remain" unless one of those warnings is important enough to name specifically.

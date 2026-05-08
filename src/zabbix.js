@@ -54,10 +54,41 @@ function getEventHosts(event) {
   return Array.isArray(event.hosts) ? event.hosts : [];
 }
 
-function getHostNames(event) {
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function getHostIdentities(event) {
   return getEventHosts(event)
-    .map((host) => host.name || host.host)
-    .filter(Boolean);
+    .map((host) => ({
+      hostid: host.hostid || null,
+      name: host.name || '',
+      technicalName: host.host || ''
+    }))
+    .filter((host) => host.name || host.technicalName);
+}
+
+function getHostNames(event) {
+  return uniqueValues(
+    getHostIdentities(event).flatMap((host) => [host.name, host.technicalName])
+  );
+}
+
+function getPrimaryHostName(hostNames) {
+  const nonGenericNames = hostNames.filter(
+    (hostName) => !/\b(?:target|template|unknown)\b/i.test(hostName)
+  );
+
+  return (
+    nonGenericNames.find((hostName) =>
+      /\b(?:mikrotik|netonix|router|switch|radio|olt|ccr|crs|rb|johnsoncity|blanco|stonewall|aa\d|ab\d)\b|-/i.test(
+        hostName
+      )
+    ) ||
+    nonGenericNames[0] ||
+    hostNames[0] ||
+    null
+  );
 }
 
 function getTags(event) {
@@ -97,6 +128,7 @@ function normalizeEvent(event, source) {
   const resolvedAt = fromUnixSeconds(event.r_clock);
   const isResolved = Boolean(resolvedAt || (event.r_eventid && event.r_eventid !== '0'));
   const hostNames = getHostNames(event);
+  const hostIdentities = getHostIdentities(event);
   const tags = getTags(event);
 
   return {
@@ -107,7 +139,9 @@ function normalizeEvent(event, source) {
     resolvedAt,
     severity: Number.isFinite(severity) ? severity : null,
     severityName: SEVERITY_NAMES[severity] || 'unknown',
+    primaryHost: getPrimaryHostName(hostNames),
     hostNames,
+    hostIdentities,
     name: event.name || event.relatedObject?.description || 'Unnamed Zabbix problem',
     opdata: event.opdata || '',
     acknowledged: event.acknowledged === '1',
