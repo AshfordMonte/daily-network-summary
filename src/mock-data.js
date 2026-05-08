@@ -1,3 +1,5 @@
+// Small sample payloads for testing OpenAI and Slack without live Graylog/Zabbix.
+
 export function getMockMessages(from, to) {
   return [
     {
@@ -23,6 +25,30 @@ export function getMockMessages(from, to) {
       level: 3,
       facility: 'routing',
       remoteIp: '10.0.0.2'
+    },
+    {
+      timestamp: from,
+      source: 'Mikrotik-JohnsonCity-Crown',
+      message: 'interface ether3-RadwinSE link down',
+      level: 4,
+      facility: 'interface',
+      remoteIp: '10.255.1.16'
+    },
+    {
+      timestamp: to,
+      source: 'Mikrotik-JohnsonCity-Crown',
+      message: 'interface ether3-RadwinSE link up',
+      level: 5,
+      facility: 'interface',
+      remoteIp: '10.255.1.16'
+    },
+    {
+      timestamp: from,
+      source: 'MikroTik-Blanco-T&J',
+      message: 'interface ether4-Polk-BH-Ethernet link down',
+      level: 4,
+      facility: 'interface',
+      remoteIp: '10.255.1.21'
     },
     {
       timestamp: from,
@@ -125,7 +151,17 @@ export function getMockZabbixContext(from, to) {
         acknowledged: false,
         suppressed: false,
         tags: [{ tag: 'scope', value: 'interface' }],
-        siteHints: [{ name: 'T&J' }, { name: 'Polk' }]
+        siteHints: [{ name: 'T&J' }, { name: 'Polk' }],
+        interfaceContext: {
+          role: 'backhaul',
+          service: 'tower_backhaul',
+          medium: 'wireless_or_fiber',
+          technology: null,
+          interfaceName: 'ether4-Polk-BH-Ethernet',
+          customerFacing: false,
+          backhaul: true,
+          note: 'tower-to-tower or office backhaul link'
+        }
       }
     ],
     longstandingActive: [
@@ -143,7 +179,17 @@ export function getMockZabbixContext(from, to) {
         acknowledged: false,
         suppressed: false,
         tags: [{ tag: 'scope', value: 'radio' }],
-        siteHints: [{ name: 'Polk' }]
+        siteHints: [{ name: 'Polk' }],
+        interfaceContext: {
+          role: 'backhaul',
+          service: 'tower_backhaul',
+          medium: 'wireless',
+          technology: null,
+          interfaceName: null,
+          customerFacing: false,
+          backhaul: true,
+          note: 'tower-to-tower or office backhaul link'
+        }
       }
     ]
   };

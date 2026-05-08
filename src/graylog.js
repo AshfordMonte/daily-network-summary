@@ -1,5 +1,5 @@
-// Graylog API versions vary. Keep endpoint paths here so they can be changed
-// without touching the query and normalization logic below.
+// Graylog API versions vary. This client tries the current scripting search
+// endpoint first, then falls back to the older absolute search endpoint.
 const SEARCH_MESSAGES_ENDPOINT_PATH = '/api/search/messages';
 
 // Older Graylog deployments often expose this legacy endpoint.
@@ -142,10 +142,7 @@ async function parseJsonResponse(response) {
   const responseBody = await response.text();
   const payload = responseBody ? JSON.parse(responseBody) : {};
 
-  return {
-    responseBody,
-    messages: extractMessageRows(payload).map(normalizeMessageRow)
-  };
+  return extractMessageRows(payload).map(normalizeMessageRow);
 }
 
 export async function searchGraylogMessages({
@@ -183,8 +180,7 @@ export async function searchGraylogMessages({
   });
 
   if (response.ok) {
-    const { messages } = await parseJsonResponse(response);
-    return messages;
+    return parseJsonResponse(response);
   }
 
   const responseBody = await response.text();
@@ -222,6 +218,5 @@ export async function searchGraylogMessages({
     );
   }
 
-  const { messages } = await parseJsonResponse(legacyResponse);
-  return messages;
+  return parseJsonResponse(legacyResponse);
 }

@@ -1,3 +1,5 @@
+// Computes the report timerange for APIs and a local-time version for Slack.
+
 export function calculateReportWindow(hours) {
   const toDate = new Date();
   const fromDate = new Date(toDate.getTime() - hours * 60 * 60 * 1000);

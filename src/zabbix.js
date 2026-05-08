@@ -1,4 +1,7 @@
+// Fetches Zabbix problem/event data and trims it into digest-friendly context.
+
 import {
+  classifyInterfaceContext,
   findKnownLoopbacks,
   findKnownSiteNames,
   inferSiteFromSource
@@ -93,6 +96,8 @@ function normalizeEvent(event, source) {
   const startedAt = fromUnixSeconds(event.clock);
   const resolvedAt = fromUnixSeconds(event.r_clock);
   const isResolved = Boolean(resolvedAt || (event.r_eventid && event.r_eventid !== '0'));
+  const hostNames = getHostNames(event);
+  const tags = getTags(event);
 
   return {
     eventId: event.eventid,
@@ -102,13 +107,18 @@ function normalizeEvent(event, source) {
     resolvedAt,
     severity: Number.isFinite(severity) ? severity : null,
     severityName: SEVERITY_NAMES[severity] || 'unknown',
-    hostNames: getHostNames(event),
+    hostNames,
     name: event.name || event.relatedObject?.description || 'Unnamed Zabbix problem',
     opdata: event.opdata || '',
     acknowledged: event.acknowledged === '1',
     suppressed: event.suppressed === '1',
-    tags: getTags(event),
-    siteHints: getSiteHints(event)
+    tags,
+    siteHints: getSiteHints(event),
+    interfaceContext: classifyInterfaceContext({
+      name: event.name || event.relatedObject?.description,
+      opdata: event.opdata,
+      hostNames
+    })
   };
 }
 
@@ -241,6 +251,8 @@ export async function fetchZabbixContext({ url, apiToken, from, to, limit = 200 
     })
   ]);
 
+  // Changed events drive the report. Longstanding active items are kept small
+  // so chronic warnings do not drown out what changed in this window.
   const allEvents = dedupeEvents([
     ...problems.map((event) => normalizeEvent(event, 'problem.get')),
     ...problemEvents.map((event) => normalizeEvent(event, 'event.get'))

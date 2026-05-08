@@ -11,6 +11,7 @@ I use this tool to give me a quick summary of what happened in the network durin
 - Graylog syslog for routing, config changes, reboots, crashes, link events, logins, and other device logs.
 - Zabbix problems for reachability, radio/backhaul health, packet loss, interface status, bandwidth, temperature, and power.
 - A small local topology/loopback map in `src/site-map.js` so reports can say things like `Crown <-> Roy` instead of only showing loopback IPs.
+- Interface context in `src/site-map.js` so customer-facing radios/OLTs are not confused with tower backhauls.
 
 The app sends OpenAI a compact summary payload, not the entire raw log stream.
 
@@ -89,5 +90,7 @@ Graylog API versions vary. The endpoint is kept near the top of `src/graylog.js`
 Zabbix is optional. If it is enabled and the API call fails, the report still runs with Graylog only.
 
 Classification rules live in `src/classify.js`. The patterns are intentionally simple regex lists so they are easy to tune as real log wording shows up.
+
+Topology and interface-role hints live in `src/site-map.js`. Radwin, Tarana, Blinq, Telrad, and OLT are treated as customer-facing access. BH, SIAE, p2p, ptp, 18 GHz, 60 GHz, ALFOplus, and obvious `to-site` names are treated as backhaul context.
 
 The main report prompt lives in `src/summarize.js`.

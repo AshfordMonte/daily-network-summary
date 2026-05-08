@@ -1,3 +1,5 @@
+// Classifies raw Graylog messages and builds the compact payload sent to OpenAI.
+
 const CATEGORY_PATTERNS = {
   // Add vendor-specific MikroTik, Netonix, radio, or core-router phrases here
   // as your Graylog vocabulary becomes clearer.
@@ -32,7 +34,13 @@ const CATEGORY_PATTERNS = {
     /\bsfp\b/i,
     /\bcarrier\b/i,
     /\bflap(?:ped|ping)?\b/i,
-    /\bbackhaul\b/i
+    /\bbackhaul\b/i,
+    /\bradwin\b/i,
+    /\btarana\b/i,
+    /\bblinq\b/i,
+    /\btelrad\b/i,
+    /\bsiae\b/i,
+    /\bolt\b/i
   ],
   security_admin: [
     /\blogin\b/i,
@@ -227,10 +235,11 @@ function getWindowConfig(config) {
 }
 
 export function buildAggregate(messages, config = {}) {
+  const window = getWindowConfig(config);
   const aggregate = {
     title: config.title,
-    window: getWindowConfig(config),
-    displayWindow: config.displayWindow || getWindowConfig(config),
+    window,
+    displayWindow: config.displayWindow || window,
     totals: {
       rawMessages: messages.length,
       analyzedMessages: 0,
@@ -247,6 +256,8 @@ export function buildAggregate(messages, config = {}) {
   const sourceCounts = new Map();
   const groupedMessages = new Map();
 
+  // Group similar messages before summarization so repeated flaps/logins do not
+  // waste the OpenAI payload budget.
   for (const message of messages) {
     const source = message.source || 'unknown';
     sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1);
@@ -262,13 +273,16 @@ export function buildAggregate(messages, config = {}) {
     const normalizedMessage = normalizeForGrouping(message.message);
     const groupKey = `${normalizeForGrouping(source)}|${normalizedMessage}`;
     const existingGroup = groupedMessages.get(groupKey);
+    const compactMessage = truncateMessage(message.message);
 
     if (existingGroup) {
       existingGroup.count += 1;
       existingGroup.lastTimestamp = message.timestamp || existingGroup.lastTimestamp;
-      existingGroup.rawMessages.add(truncateMessage(message.message));
+      existingGroup.rawMessages.add(compactMessage);
       existingGroup.knownSites = mergeKnownSites(existingGroup.knownSites, message.knownSites);
       existingGroup.knownPath = existingGroup.knownPath || message.knownPath || null;
+      existingGroup.interfaceContext =
+        existingGroup.interfaceContext || message.interfaceContext || null;
       existingGroup.topologyNeighbors = mergeStrings(
         existingGroup.topologyNeighbors,
         message.topologyNeighbors
@@ -288,12 +302,13 @@ export function buildAggregate(messages, config = {}) {
       severity: classification.severity,
       categories: classification.categories,
       normalizedMessage,
-      message: truncateMessage(message.message),
+      message: compactMessage,
       sourceSite: message.sourceSite || null,
       knownSites: message.knownSites || [],
       knownPath: message.knownPath || null,
+      interfaceContext: message.interfaceContext || null,
       topologyNeighbors: message.topologyNeighbors || [],
-      rawMessages: new Set([truncateMessage(message.message)]),
+      rawMessages: new Set([compactMessage]),
       count: 1
     });
   }
@@ -301,6 +316,7 @@ export function buildAggregate(messages, config = {}) {
   const sortedGroups = [...groupedMessages.values()].sort(sortByUsefulness);
   let eventEntryCount = 0;
 
+  // Keep the payload intentionally small and biased toward high/medium events.
   for (const group of sortedGroups) {
     if (group.categories.includes('noise')) {
       continue;
@@ -319,6 +335,7 @@ export function buildAggregate(messages, config = {}) {
         sourceSite: group.sourceSite,
         knownSites: group.knownSites,
         knownPath: group.knownPath,
+        interfaceContext: group.interfaceContext,
         topologyNeighbors: group.topologyNeighbors,
         count: group.count
       });
@@ -342,6 +359,7 @@ export function buildAggregate(messages, config = {}) {
       sourceSite: group.sourceSite,
       knownSites: group.knownSites,
       knownPath: group.knownPath,
+      interfaceContext: group.interfaceContext,
       topologyNeighbors: group.topologyNeighbors,
       count: group.count
     }));

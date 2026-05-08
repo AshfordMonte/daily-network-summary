@@ -1,4 +1,4 @@
-// Keep this query broad enough to catch network-relevant syslog, but avoid
+// Default Graylog search query. Keep it broad enough to catch network-relevant syslog, but avoid
 // expensive leading wildcards that can make OpenSearch fail on larger indexes.
 export const DEFAULT_SEARCH_QUERY = `(
   bgp OR
@@ -14,6 +14,13 @@ export const DEFAULT_SEARCH_QUERY = `(
   "link up" OR
   interface OR
   sfp OR
+  backhaul OR
+  radwin OR
+  tarana OR
+  blinq OR
+  telrad OR
+  siae OR
+  olt OR
   login OR
   authentication OR
   configuration

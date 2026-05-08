@@ -1,3 +1,5 @@
+// Minimal Slack incoming-webhook client.
+
 export async function postToSlack(text, webhookUrl = process.env.SLACK_WEBHOOK_URL) {
   if (!webhookUrl) {
     throw new Error('SLACK_WEBHOOK_URL is required to post the report.');

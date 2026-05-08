@@ -1,3 +1,6 @@
+// Main CLI entry point. It gathers data, builds the compact payload, summarizes it,
+// and posts one Slack message.
+
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
@@ -33,11 +36,7 @@ function emptyZabbixContext(enabled = false) {
 }
 
 async function loadZabbixContext(config, window) {
-  if (!config.zabbix.enabled && !config.mockMode) {
-    return emptyZabbixContext(false);
-  }
-
-  if (config.mockMode && !config.zabbix.enabled) {
+  if (!config.zabbix.enabled) {
     return emptyZabbixContext(false);
   }
 
@@ -91,6 +90,8 @@ export async function main() {
 
   const enrichedMessages = messages.map(enrichMessageWithSiteHints);
 
+  // Graylog data is aggregated before Zabbix is attached so each source keeps
+  // its own shape inside the OpenAI payload.
   const aggregate = buildAggregate(enrichedMessages, {
     title: config.reportTitle,
     window: {

@@ -1,3 +1,5 @@
+// Sends the compact network payload to OpenAI and returns the Slack-ready text.
+
 import OpenAI from 'openai';
 
 const DEFAULT_MODEL = 'gpt-4.1-mini';
@@ -11,11 +13,15 @@ Context:
 - Zabbix problem/event context may be included with availability, reachability, packet loss, interface, power, and host problem data.
 - Zabbix events are split into daily changed events and a small capped longstandingActive list.
 - Graylog is the source of device log, routing log, authentication, and configuration-change context.
-- Zabbix is the source of radio backhaul health, reachability, packet loss, bandwidth/interface utilization, temperature, power, and interface status context.
+- Zabbix is the source of radio/backhaul health, customer-facing access radio/OLT health, reachability, packet loss, bandwidth/interface utilization, temperature, power, and interface status context.
 - Treat Graylog and Zabbix as complementary report inputs, not as systems that must confirm or contradict each other.
 - The environment includes MikroTik routers, Netonix switches, backhauls, and core infrastructure.
 - Most tower sites are connected by wireless point-to-point backhaul links.
+- Some tower/office backhauls are fiber. Roy, Cox, and Stonewall can have fiber backhauls to the main office.
 - OSPF drops on tower/backhaul paths are often caused by power issues, storm-related interference, RF path degradation, or a tower/site going offline.
+- Radwin, Tarana, Blinq, and Telrad interfaces are customer-facing wireless sectors, not tower-to-tower backhauls.
+- OLT interfaces are customer-facing fiber access, not tower-to-tower backhauls.
+- BH, backhaul, SIAE, p2p, ptp, 18 GHz, 60 GHz, ALFOplus, and clear to-site interface names usually indicate tower/office backhaul links.
 - "Above 50 dB" in Zabbix radio/backhaul context is a normal watch threshold for link health. Mention it as a watch item, not an outage by itself.
 - Existing real-time Slack alerts already handle urgent BGP and OSPF events.
 - This report is a daily morning digest.
@@ -35,6 +41,7 @@ Focus on:
 - correlations between OSPF drops and wireless backhaul/interface flaps at tower sites
 - daily changed Zabbix events first; longstandingActive Zabbix problems only when they are high/disaster severity or meaningful radio/backhaul health context
 - knownPath and knownSites fields when present; use those to translate loopback IPs into site names
+- interfaceContext when present; use it to distinguish customer-facing access sectors/OLTs from tower/office backhauls
 - topologyNeighbors when present; use them only as background topology context, not as proof that the neighbor had an outage
 
 Ignore or minimize:
@@ -60,9 +67,9 @@ Window: \`<displayWindow.from> to <displayWindow.to>\`
 - 0 to 2 bullets covering reboots/crashes/watchdogs, Zabbix reachability, temperature, power, or host health.
 - If there are no such events, say "No notable device health or availability events."
 
-*Interfaces / Backhaul*
-- 0 to 2 bullets covering Graylog interface logs plus Zabbix radio/backhaul/interface health, packet loss, bandwidth, or link status.
-- If there are no such events, say "No notable interface or backhaul events."
+*Wireless / Backhaul*
+- 0 to 2 bullets covering Graylog interface logs plus Zabbix radio/backhaul/access-sector/OLT health, packet loss, bandwidth, or link status.
+- If there are no such events, say "No notable wireless or backhaul events."
 
 *Security / Admin*
 - 0 to 1 bullets, or "No notable security/admin events."
@@ -81,10 +88,12 @@ Formatting rules:
 - Never say "No notable..." in a section that also contains a real event for that same section.
 - Prefer a short positive finding over a contradictory no-event statement.
 - If an event includes knownPath, describe the relationship as *knownPath.from* :left_right_arrow: *knownPath.to* instead of using only the loopback IP.
-- If an event only has topologyNeighbors, do not say the neighbor should have reported an outage. For a single local interface flap, describe the local interface and optionally say it is on a path toward the neighbor.
+- If interfaceContext.role is customer_access, describe it as a local customer-facing wireless sector or fiber OLT event. Do not infer an upstream/backhaul neighbor from topology.
+- If interfaceContext.role is backhaul, describe it as a tower/office backhaul event and use knownPath when available.
+- If an event only has topologyNeighbors, do not say the neighbor should have reported an outage. For a single local interface flap, describe only the local interface unless interfaceContext says it is backhaul.
 - Do not write "no matching Zabbix outage/problem" or otherwise compare the tools just to prove one did not confirm the other.
 - Mention a Graylog/Zabbix relationship only when both clearly describe the same site, device, interface, or backhaul event.
-- Treat zabbix.events as new/changed problems in the report window. Use them mainly in Device Health or Interfaces / Backhaul.
+- Treat zabbix.events as new/changed problems in the report window. Use them mainly in Device Health or Wireless / Backhaul.
 - Treat zabbix.longstandingActive as chronic background context. Do not headline it unless it is high/disaster severity or a meaningful radio/backhaul health issue.
 - Do not say "multiple longstanding Zabbix warnings remain" unless one of those warnings is important enough to name specifically.
 - Do not dump every Zabbix problem; summarize only the Zabbix events that are operationally useful for the digest.

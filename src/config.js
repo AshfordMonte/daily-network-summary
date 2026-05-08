@@ -1,3 +1,5 @@
+// Loads .env values once, applies defaults, and fails early on bad config.
+
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -64,6 +66,7 @@ function parseStreamIds(value) {
 export function loadConfig() {
   const mockMode = parseBoolean(process.env.MOCK_MODE);
 
+  // Mock mode still requires OpenAI and Slack because it skips only Graylog/Zabbix.
   const config = {
     mockMode,
     reportWindowHours: parsePositiveInteger(

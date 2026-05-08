@@ -76,6 +76,23 @@ const SITE_ALIASES = {
 
 const IP_ADDRESS_PATTERN = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 
+const CUSTOMER_ACCESS_PATTERNS = [
+  { pattern: /\bradwin[a-z0-9-]*\b/i, technology: 'Radwin', medium: 'wireless' },
+  { pattern: /\btarana[a-z0-9-]*\b/i, technology: 'Tarana', medium: 'wireless' },
+  { pattern: /\bblinq[a-z0-9-]*\b/i, technology: 'Blinq', medium: 'wireless' },
+  { pattern: /\btelrad[a-z0-9-]*\b/i, technology: 'Telrad', medium: 'wireless' },
+  { pattern: /\bolt[a-z0-9-]*\b/i, technology: 'OLT', medium: 'fiber' }
+];
+
+const BACKHAUL_PATTERNS = [
+  { pattern: /\b(?:bh|backhaul)\b/i, technology: null, medium: 'wireless_or_fiber' },
+  { pattern: /\bsiae\b/i, technology: 'SIAE', medium: 'wireless' },
+  { pattern: /(?:^|[^a-z0-9])p2p(?:[^a-z0-9]|$)/i, technology: null, medium: 'wireless_or_fiber' },
+  { pattern: /(?:^|[^a-z0-9])ptp(?:[^a-z0-9]|$)/i, technology: null, medium: 'wireless_or_fiber' },
+  { pattern: /\b(?:18|60)\s*ghz\b/i, technology: null, medium: 'wireless' },
+  { pattern: /\balfoplus\d*\b/i, technology: 'SIAE ALFOplus', medium: 'wireless' }
+];
+
 function compactName(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
@@ -109,6 +126,51 @@ function uniqueSites(sites) {
     seen.add(key);
     return true;
   });
+}
+
+function matchInterfacePattern(text, patterns) {
+  return patterns.find(({ pattern }) => pattern.test(text));
+}
+
+function extractInterfaceName(text) {
+  const patterns = [
+    /\b(?:interface|port)\s+([a-z0-9._:%/+&-]+)/i,
+    /\b((?:ether|sfp|vlan|bridge|bond|lag|p2p|ptp|v\d+)[a-z0-9._:%/+&-]*)\b/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = String(text || '').match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+function getInterfaceText(value) {
+  if (!value || typeof value !== 'object') {
+    return String(value || '');
+  }
+
+  return [
+    value.source,
+    value.message,
+    value.remoteIp,
+    value.name,
+    value.opdata,
+    ...(Array.isArray(value.hostNames) ? value.hostNames : [])
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function hasSiteToSiteHint(text) {
+  if (!/(?:^|[^a-z0-9])(?:to|toward)[-_ ]?[a-z0-9]+/i.test(text)) {
+    return false;
+  }
+
+  return findKnownSiteNames(text).length >= 2;
 }
 
 export function findKnownLoopbacks(text) {
@@ -147,15 +209,64 @@ export function inferSiteFromSource(source) {
   return match?.canonicalName || null;
 }
 
+export function classifyInterfaceContext(value) {
+  const text = getInterfaceText(value);
+  const interfaceName = extractInterfaceName(text);
+  const customerAccessMatch = matchInterfacePattern(text, CUSTOMER_ACCESS_PATTERNS);
+
+  if (customerAccessMatch) {
+    return {
+      role: 'customer_access',
+      service: customerAccessMatch.medium === 'fiber' ? 'fiber_olt' : 'wireless_sector',
+      medium: customerAccessMatch.medium,
+      technology: customerAccessMatch.technology,
+      interfaceName,
+      customerFacing: true,
+      backhaul: false,
+      note:
+        customerAccessMatch.medium === 'fiber'
+          ? 'customer-facing fiber OLT'
+          : 'customer-facing tower radio sector'
+    };
+  }
+
+  const backhaulMatch = matchInterfacePattern(text, BACKHAUL_PATTERNS);
+  if (backhaulMatch || hasSiteToSiteHint(text)) {
+    return {
+      role: 'backhaul',
+      service: 'tower_backhaul',
+      medium: backhaulMatch?.medium || 'wireless_or_fiber',
+      technology: backhaulMatch?.technology || null,
+      interfaceName,
+      customerFacing: false,
+      backhaul: true,
+      note: 'tower-to-tower or office backhaul link'
+    };
+  }
+
+  return interfaceName
+    ? {
+        role: 'interface',
+        service: 'unknown_interface',
+        medium: null,
+        technology: null,
+        interfaceName,
+        customerFacing: false,
+        backhaul: false,
+        note: 'interface event with unknown service role'
+      }
+    : null;
+}
+
 function sortTopologySitesForSource(sourceSite, sites) {
   if (!sourceSite) {
     return sites;
   }
 
-  const directNeighbors = getTopologyNeighbors(sourceSite);
+  const directNeighbors = new Set(getTopologyNeighbors(sourceSite));
   return [...sites].sort((a, b) => {
-    const aIsNeighbor = directNeighbors.includes(a.name) ? 1 : 0;
-    const bIsNeighbor = directNeighbors.includes(b.name) ? 1 : 0;
+    const aIsNeighbor = directNeighbors.has(a.name) ? 1 : 0;
+    const bIsNeighbor = directNeighbors.has(b.name) ? 1 : 0;
     return bIsNeighbor - aIsNeighbor;
   });
 }
@@ -168,26 +279,35 @@ export function getTopologyNeighbors(siteName) {
 
 export function enrichMessageWithSiteHints(message) {
   const sourceSite = inferSiteFromSource(message.source);
+  const interfaceContext = classifyInterfaceContext(message);
+  const topologyNeighbors =
+    sourceSite && interfaceContext?.role !== 'customer_access'
+      ? getTopologyNeighbors(sourceSite)
+      : [];
   const knownSites = uniqueSites(
     [
       ...findKnownLoopbacks(`${message.message || ''} ${message.remoteIp || ''}`),
       ...findKnownSiteNames(`${message.source || ''} ${message.message || ''}`)
     ].filter((site) => site.name !== sourceSite)
   );
-  const remoteSite = sortTopologySitesForSource(sourceSite, knownSites)[0];
+  const remoteSite =
+    interfaceContext?.role === 'customer_access'
+      ? null
+      : sortTopologySitesForSource(sourceSite, knownSites)[0];
 
   return {
     ...message,
     sourceSite,
     knownSites,
-    topologyNeighbors: sourceSite ? getTopologyNeighbors(sourceSite) : [],
+    topologyNeighbors,
+    interfaceContext,
     knownPath:
       sourceSite && remoteSite
         ? {
             from: sourceSite,
             to: remoteSite.name,
             toIp: remoteSite.ip || null,
-            isDirectTopologyLink: getTopologyNeighbors(sourceSite).includes(remoteSite.name)
+            isDirectTopologyLink: topologyNeighbors.includes(remoteSite.name)
           }
         : null
   };

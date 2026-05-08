@@ -1,15 +1,21 @@
+// Cleans up model output into predictable Slack mrkdwn.
+
 const SLACK_MESSAGE_LIMIT = 3900;
 const DEFAULT_TITLE = 'Daily Network Syslog Summary';
 const SECTION_HEADINGS = [
   'Overall',
   'Routing',
   'Device Health',
-  'Interfaces / Backhaul',
+  'Wireless / Backhaul',
   'Security / Admin',
   'Most Active Devices'
 ];
+const SECTION_HEADING_SET = new Set(SECTION_HEADINGS.map((heading) => `*${heading}*`));
 
 const SECTION_ALIASES = {
+  'interfaces / backhaul': 'Wireless / Backhaul',
+  'interfaces/backhaul': 'Wireless / Backhaul',
+  'wireless/backhaul': 'Wireless / Backhaul',
   'noisy devices': 'Most Active Devices'
 };
 
@@ -87,7 +93,7 @@ function compactSectionSpacing(text) {
   const compactLines = [];
 
   for (const line of lines) {
-    const isHeading = SECTION_HEADINGS.some((heading) => line === `*${heading}*`);
+    const isHeading = SECTION_HEADING_SET.has(line);
     const previousLine = compactLines[compactLines.length - 1];
 
     if (line === '') {
@@ -108,7 +114,7 @@ function compactSectionSpacing(text) {
 }
 
 function isSectionHeading(line) {
-  return SECTION_HEADINGS.some((heading) => line === `*${heading}*`);
+  return SECTION_HEADING_SET.has(line);
 }
 
 function removeTrailingRecap(text) {
