@@ -93,6 +93,31 @@ function styleLines(text) {
     .join('\n');
 }
 
+function removeEmptyBullets(text) {
+  return text
+    .split('\n')
+    .filter((line) => !/^-\s*$/.test(line.trim()))
+    .join('\n');
+}
+
+function removeIncompleteFinalLine(text) {
+  const lines = text.split('\n');
+
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
+
+  const lastLine = lines[lines.length - 1]?.trim() || '';
+  const hasUnfinishedSlackEmoji = /:[a-z_]{2,}$/i.test(lastLine);
+  const hasUnclosedInlineCode = (lastLine.match(/`/g) || []).length % 2 === 1;
+
+  if (lastLine.startsWith('- ') && (hasUnfinishedSlackEmoji || hasUnclosedInlineCode)) {
+    lines.pop();
+  }
+
+  return lines.join('\n');
+}
+
 function compactSectionSpacing(text) {
   const lines = text.split('\n');
   const compactLines = [];
@@ -146,9 +171,29 @@ function removeTrailingRecap(text) {
   return lines.join('\n').trim();
 }
 
+function removeTrailingEmptySection(text) {
+  const lines = text.split('\n');
+
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
+
+  if (isSectionHeading(lines[lines.length - 1]?.trim() || '')) {
+    lines.pop();
+  }
+
+  return lines.join('\n').trim();
+}
+
 export function formatSlackMessage(summaryText) {
-  const formatted = removeTrailingRecap(
-    compactSectionSpacing(styleLines(boldFirstLine(normalizeText(summaryText))))
+  const formatted = removeTrailingEmptySection(
+    removeTrailingRecap(
+      compactSectionSpacing(
+        removeIncompleteFinalLine(
+          removeEmptyBullets(styleLines(boldFirstLine(normalizeText(summaryText))))
+        )
+      )
+    )
   );
 
   if (formatted.length <= SLACK_MESSAGE_LIMIT) {

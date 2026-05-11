@@ -4,7 +4,8 @@ import OpenAI from 'openai';
 
 const DEFAULT_MODEL = 'gpt-4.1-mini';
 const DEFAULT_MAX_OUTPUT_TOKENS = 900;
-const REASONING_MODEL_MAX_OUTPUT_TOKENS = 1800;
+const REASONING_MODEL_MAX_OUTPUT_TOKENS = 3200;
+const RETRY_MAX_OUTPUT_TOKENS = 4000;
 
 const SUMMARY_INSTRUCTIONS = `You are summarizing daily syslog events for an ISP network engineer.
 
@@ -23,6 +24,7 @@ Context:
 - OLT interfaces are customer-facing fiber access, not tower-to-tower backhauls.
 - BH, backhaul, SIAE, p2p, ptp, 18 GHz, 60 GHz, ALFOplus, and clear to-site interface names usually indicate tower/office backhaul links.
 - "Above 50 dB" in Zabbix radio/backhaul context is a normal watch threshold for link health. Mention it as a watch item, not an outage by itself.
+- FCS, CRC, frame-check, RX/TX, input, and output errors are interface/link-layer errors. Treat repeated counts as Wireless / Backhaul signal, not Device Health.
 - Existing real-time Slack alerts already handle urgent BGP and OSPF events.
 - This report is a daily morning digest.
 - Do not exaggerate impact.
@@ -36,13 +38,14 @@ Focus on:
 - router/switch reboots
 - watchdogs, kernel failures, crashes
 - backhaul/core interface flaps
+- FCS/CRC/frame-check/input/output error bursts on backhaul, radio, or core interfaces
 - repeated errors from the same device
 - suspicious authentication or config activity
 - correlations between OSPF drops and wireless backhaul/interface flaps at tower sites
 - daily changed Zabbix events first; longstandingActive Zabbix problems only when they are high/disaster severity or meaningful radio/backhaul health context
 - knownPath and knownSites fields when present; use those to translate loopback IPs into site names
 - interfaceContext when present; use it to distinguish customer-facing access sectors/OLTs from tower/office backhauls
-- primaryHost, hostNames, and hostIdentities on Zabbix events; use the most specific device/site name available
+- displayHost, primaryHost, hostNames, hostIdentities, and siteHints on Zabbix events; use the most specific device/site name available
 - topologyNeighbors when present; use them only as background topology context, not as proof that the neighbor had an outage
 
 Ignore or minimize:
@@ -67,10 +70,11 @@ Window: \`<displayWindow.from> to <displayWindow.to>\`
 *Device Health*
 - 0 to 2 bullets covering reboots/crashes/watchdogs, Zabbix reachability, temperature, power, or host health.
 - If there are no such events, say "No notable device health or availability events."
+- Do not put interface bandwidth, link speed, packet loss, FCS/CRC/input/output errors, radio signal, or link-status warnings here; those belong in Wireless / Backhaul unless they are clearly host-wide.
 - Do not place login failures, authentication failures, config edits, firewall script errors, or address-list/script failures here unless they clearly caused device health impact.
 
 *Wireless / Backhaul*
-- 0 to 2 bullets covering Graylog interface logs plus Zabbix radio/backhaul/access-sector/OLT health, packet loss, bandwidth, or link status.
+- 0 to 2 bullets covering Graylog interface logs plus Zabbix radio/backhaul/access-sector/OLT health, packet loss, FCS/CRC/input/output errors, bandwidth, or link status.
 - If there are no such events, say "No notable wireless or backhaul events."
 
 *Security / Admin*
@@ -86,13 +90,16 @@ Window: \`<displayWindow.from> to <displayWindow.to>\`
 
 Formatting rules:
 - Use Slack mrkdwn, not markdown headings.
+- Target 1200-1800 characters total. Prefer shorter bullets over more bullets.
 - Use single asterisks for bold text, for example *MikroTik-Blanco-T&J*. Do not use double asterisks.
 - Keep one blank line between sections.
 - Keep bullets short enough to scan quickly.
 - Do not use a lead-in bullet that ends with a colon. Fold examples into the same bullet instead.
 - Do not create nested lists; every bullet must stand on its own.
 - Use device names and interface names exactly as provided.
-- For Zabbix events, prefer primaryHost or the most specific hostNames/hostIdentities value over generic trigger wording such as "CCR target."
+- For Zabbix events, prefer displayHost, primaryHost, or the most specific hostNames/hostIdentities value over generic trigger wording such as "CCR target" or "device tagged ...".
+- If only a hardware model is available, say "CCR1009-class device" or similar instead of inventing a site/device name.
+- Never emit an empty bullet. If there is only one Most Active Devices item, include one bullet only.
 - Never say "No notable..." in a section that also contains a real event for that same section.
 - Prefer a short positive finding over a contradictory no-event statement.
 - Prefer "no broad outage pattern is evident in the report data" over "no widespread outages reported."
@@ -113,6 +120,7 @@ Formatting rules:
 - For site-to-site or device-to-device relationships, use exactly *Site A* :left_right_arrow: *Site B* when it improves scanning.
 - Never start a bullet or relationship phrase with :left_right_arrow:.
 - You may use common Slack emoji codes sparingly if they improve scanning.
+- Never leave an unfinished Slack emoji code, relationship arrow, sentence, or bullet.
 - Do not include a Suggested Follow-Up section.
 - Do not add a final recap, conclusion, recommendation paragraph, or next-steps paragraph after Most Active Devices.
 Keep the final answer short enough for Slack.
@@ -140,16 +148,16 @@ function isReasoningModel(model) {
   return /^(gpt-5|o\d|o4)/i.test(model);
 }
 
-function buildResponseParams({ model, compactPayload, reasoningEffort }) {
+function buildResponseParams({ model, compactPayload, reasoningEffort, maxOutputTokens }) {
   const params = {
     model,
     instructions: SUMMARY_INSTRUCTIONS,
     input: JSON.stringify(compactPayload, null, 2),
-    max_output_tokens: DEFAULT_MAX_OUTPUT_TOKENS
+    max_output_tokens: maxOutputTokens || DEFAULT_MAX_OUTPUT_TOKENS
   };
 
   if (isReasoningModel(model)) {
-    params.max_output_tokens = REASONING_MODEL_MAX_OUTPUT_TOKENS;
+    params.max_output_tokens = maxOutputTokens || REASONING_MODEL_MAX_OUTPUT_TOKENS;
     params.reasoning = {
       effort: reasoningEffort || process.env.OPENAI_REASONING_EFFORT || 'minimal'
     };
@@ -172,6 +180,10 @@ function describeEmptyResponse(response) {
   return `status=${status}, incompleteReason=${incompleteReason}, outputTypes=${outputTypes}, outputTokens=${outputTokens}, reasoningTokens=${reasoningTokens}`;
 }
 
+function isIncompleteResponse(response) {
+  return response.status === 'incomplete' || Boolean(response.incomplete_details?.reason);
+}
+
 export async function summarizeNetworkEvents(compactPayload, options = {}) {
   const apiKey = options.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -180,17 +192,29 @@ export async function summarizeNetworkEvents(compactPayload, options = {}) {
 
   const model = options.model || process.env.OPENAI_MODEL || DEFAULT_MODEL;
   const client = new OpenAI({ apiKey });
-  const response = await client.responses.create(
-    buildResponseParams({
-      model,
-      compactPayload,
-      reasoningEffort: options.reasoningEffort
-    })
-  );
+  const responseParams = buildResponseParams({
+    model,
+    compactPayload,
+    reasoningEffort: options.reasoningEffort
+  });
+  let response = await client.responses.create(responseParams);
+  let summary = extractOutputText(response);
 
-  const summary = extractOutputText(response);
+  if (isIncompleteResponse(response)) {
+    response = await client.responses.create({
+      ...responseParams,
+      instructions: `${SUMMARY_INSTRUCTIONS}\n\nThe previous attempt was incomplete. Produce a complete, shorter report and finish all sections cleanly.`,
+      max_output_tokens: Math.max(responseParams.max_output_tokens, RETRY_MAX_OUTPUT_TOKENS)
+    });
+    summary = extractOutputText(response);
+  }
+
   if (!summary) {
     throw new Error(`OpenAI returned an empty summary (${describeEmptyResponse(response)}).`);
+  }
+
+  if (isIncompleteResponse(response)) {
+    throw new Error(`OpenAI returned an incomplete summary (${describeEmptyResponse(response)}).`);
   }
 
   return summary;

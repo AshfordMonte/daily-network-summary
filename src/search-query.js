@@ -13,6 +13,18 @@ export const DEFAULT_SEARCH_QUERY = `(
   "link down" OR
   "link up" OR
   interface OR
+  fcs OR
+  crc OR
+  "frame check" OR
+  "frame check sequence" OR
+  "input error" OR
+  "input errors" OR
+  "output error" OR
+  "output errors" OR
+  "rx error" OR
+  "rx errors" OR
+  "tx error" OR
+  "tx errors" OR
   sfp OR
   backhaul OR
   radwin OR

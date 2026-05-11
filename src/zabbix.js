@@ -100,9 +100,27 @@ function getTags(event) {
     : [];
 }
 
-function getSiteHints(event) {
-  const hostNames = getHostNames(event);
-  const text = `${event.name || ''} ${event.opdata || ''} ${hostNames.join(' ')}`;
+function isGenericHardwareName(hostName) {
+  return /^(?:ccr|crs|rb|netpower|netbox|powerbox|routerboard)[a-z0-9-]*$/i.test(
+    hostName || ''
+  );
+}
+
+function formatHardwareClassName(hostName) {
+  const match = String(hostName || '').match(
+    /^(ccr|crs|rb|netpower|netbox|powerbox|routerboard)(\d+)?/i
+  );
+
+  if (!match) {
+    return hostName;
+  }
+
+  return `${match[1].toUpperCase()}${match[2] || ''}-class device`;
+}
+
+function getSiteHints(event, hostNames, tags) {
+  const tagText = tags.map((tag) => `${tag.tag} ${tag.value}`).join(' ');
+  const text = `${event.name || ''} ${event.opdata || ''} ${hostNames.join(' ')} ${tagText}`;
   const sourceSites = hostNames.map(inferSiteFromSource).filter(Boolean);
   const knownSites = [
     ...sourceSites.map((name) => ({ name })),
@@ -122,6 +140,24 @@ function getSiteHints(event) {
   });
 }
 
+function getDisplayHost(primaryHost, siteHints) {
+  const primarySite = siteHints[0]?.name;
+
+  if (!primaryHost) {
+    return primarySite || null;
+  }
+
+  if (primarySite && isGenericHardwareName(primaryHost)) {
+    return `${primarySite} (${formatHardwareClassName(primaryHost)})`;
+  }
+
+  if (isGenericHardwareName(primaryHost)) {
+    return formatHardwareClassName(primaryHost);
+  }
+
+  return primaryHost;
+}
+
 function normalizeEvent(event, source) {
   const severity = Number.parseInt(event.severity, 10);
   const startedAt = fromUnixSeconds(event.clock);
@@ -130,6 +166,8 @@ function normalizeEvent(event, source) {
   const hostNames = getHostNames(event);
   const hostIdentities = getHostIdentities(event);
   const tags = getTags(event);
+  const siteHints = getSiteHints(event, hostNames, tags);
+  const primaryHost = getPrimaryHostName(hostNames);
 
   return {
     eventId: event.eventid,
@@ -139,7 +177,8 @@ function normalizeEvent(event, source) {
     resolvedAt,
     severity: Number.isFinite(severity) ? severity : null,
     severityName: SEVERITY_NAMES[severity] || 'unknown',
-    primaryHost: getPrimaryHostName(hostNames),
+    primaryHost,
+    displayHost: getDisplayHost(primaryHost, siteHints),
     hostNames,
     hostIdentities,
     name: event.name || event.relatedObject?.description || 'Unnamed Zabbix problem',
@@ -147,7 +186,7 @@ function normalizeEvent(event, source) {
     acknowledged: event.acknowledged === '1',
     suppressed: event.suppressed === '1',
     tags,
-    siteHints: getSiteHints(event),
+    siteHints,
     interfaceContext: classifyInterfaceContext({
       name: event.name || event.relatedObject?.description,
       opdata: event.opdata,
