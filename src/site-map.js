@@ -52,7 +52,25 @@ export const TOPOLOGY_LINKS = [
   ['Southold', 'Grape Creek']
 ];
 
+export const SITE_DEPENDENCY_TREE = {
+  'JC Main': ['Roy', 'JCWT', 'Cox', 'Stonewall Main'],
+  Roy: ['Bentley', 'Crown', 'Cypress Mill'],
+  Cox: ['Polk', 'Cole', 'Koch'],
+  Polk: ['Majestic Hills', 'T&J'],
+  'T&J': ['Schumann', 'Preserves'],
+  Koch: ['Legacy Hills'],
+  'Stonewall Main': ['Southold'],
+  Southold: ['Grape Creek']
+};
+
 const SITE_ALIASES = {
+  JCMain: 'JC Main',
+  'JC-Main': 'JC Main',
+  'JC Main': 'JC Main',
+  JCCore: 'JC Main',
+  'JC Core': 'JC Main',
+  CoreRouter: 'JC Main',
+  'Core Router': 'JC Main',
   BlancoCox: 'Cox',
   BlancoCole: 'Cole',
   BlancoPolk: 'Polk',
@@ -78,6 +96,7 @@ const IP_ADDRESS_PATTERN = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 
 const CUSTOMER_ACCESS_PATTERNS = [
   { pattern: /\bradwin[a-z0-9-]*\b/i, technology: 'Radwin', medium: 'wireless' },
+  { pattern: /\bhbs[a-z0-9_-]*\b/i, technology: 'Radwin', medium: 'wireless' },
   { pattern: /\btarana[a-z0-9-]*\b/i, technology: 'Tarana', medium: 'wireless' },
   { pattern: /\bblinq[a-z0-9-]*\b/i, technology: 'Blinq', medium: 'wireless' },
   { pattern: /\btelrad[a-z0-9-]*\b/i, technology: 'Telrad', medium: 'wireless' },
@@ -95,6 +114,21 @@ const BACKHAUL_PATTERNS = [
 
 function compactName(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function canonicalSiteName(value) {
+  if (!value) {
+    return null;
+  }
+
+  const exactAlias = SITE_ALIASES[value];
+  if (exactAlias) {
+    return exactAlias;
+  }
+
+  const compactValue = compactName(value);
+  const match = SITE_NAME_LOOKUP.find((site) => site.compact === compactValue);
+  return match?.canonicalName || null;
 }
 
 const SITE_NAMES = [
@@ -126,6 +160,131 @@ function uniqueSites(sites) {
     seen.add(key);
     return true;
   });
+}
+
+function uniqueSiteNames(siteNames) {
+  return [...new Set(siteNames.filter(Boolean))];
+}
+
+function getParentSite(siteName) {
+  return (
+    Object.entries(SITE_DEPENDENCY_TREE).find(([, childSites]) =>
+      childSites.includes(siteName)
+    )?.[0] || null
+  );
+}
+
+function getChildSites(siteName) {
+  return SITE_DEPENDENCY_TREE[siteName] || [];
+}
+
+function getDownstreamSites(siteName) {
+  const downstreamSites = [];
+  const pendingSites = [...getChildSites(siteName)];
+
+  while (pendingSites.length > 0) {
+    const childSite = pendingSites.shift();
+    downstreamSites.push(childSite);
+    pendingSites.push(...getChildSites(childSite));
+  }
+
+  return downstreamSites;
+}
+
+function findSiteMentions(text) {
+  const compactText = compactName(text);
+  if (!compactText) {
+    return [];
+  }
+
+  const mentions = SITE_NAME_LOOKUP.map((site) => ({
+    name: site.canonicalName,
+    index: compactText.indexOf(site.compact)
+  }))
+    .filter((site) => site.index >= 0)
+    .sort((a, b) => a.index - b.index);
+
+  return uniqueSites(mentions);
+}
+
+function getDirectDependencyLink(siteA, siteB) {
+  if (!siteA || !siteB || siteA === siteB) {
+    return null;
+  }
+
+  if (getParentSite(siteA) === siteB) {
+    return {
+      parentSite: siteB,
+      childSite: siteA
+    };
+  }
+
+  if (getParentSite(siteB) === siteA) {
+    return {
+      parentSite: siteA,
+      childSite: siteB
+    };
+  }
+
+  return null;
+}
+
+function buildLinkDependencyContext(siteA, siteB) {
+  const directLink = getDirectDependencyLink(siteA, siteB);
+  if (!directLink) {
+    return null;
+  }
+
+  const downstreamSites = getDownstreamSites(directLink.childSite);
+
+  return {
+    from: directLink.parentSite,
+    to: directLink.childSite,
+    parentSite: directLink.parentSite,
+    childSite: directLink.childSite,
+    downstreamSites,
+    branchSites: [directLink.childSite, ...downstreamSites]
+  };
+}
+
+function buildSiteDependencyContext(siteName) {
+  if (!siteName) {
+    return null;
+  }
+
+  const childSites = getChildSites(siteName);
+  const downstreamSites = getDownstreamSites(siteName);
+
+  return {
+    site: siteName,
+    parentSite: getParentSite(siteName),
+    childSites,
+    downstreamSites
+  };
+}
+
+function buildDependencyContext({ sourceSite, knownSites = [], text = '' }) {
+  const mentionedSites = findSiteMentions(text).map((site) => site.name);
+  const knownSiteNames = knownSites.map((site) => site.name);
+  const matchedSites = uniqueSiteNames([
+    canonicalSiteName(sourceSite) || sourceSite,
+    ...mentionedSites,
+    ...knownSiteNames
+  ]);
+  const site = canonicalSiteName(sourceSite) || sourceSite || matchedSites[0] || null;
+  const remoteSite = matchedSites.find((candidate) => candidate !== site) || null;
+  const link = buildLinkDependencyContext(site, remoteSite);
+  const siteContext = buildSiteDependencyContext(site);
+
+  if (!siteContext && !link && matchedSites.length === 0) {
+    return null;
+  }
+
+  return {
+    ...siteContext,
+    matchedSites,
+    link
+  };
 }
 
 function matchInterfacePattern(text, patterns) {
@@ -187,16 +346,7 @@ export function findKnownLoopbacks(text) {
 }
 
 export function findKnownSiteNames(text) {
-  const compactText = compactName(text);
-  if (!compactText) {
-    return [];
-  }
-
-  return uniqueSites(
-    SITE_NAME_LOOKUP.filter((site) => compactText.includes(site.compact)).map((site) => ({
-      name: site.canonicalName
-    }))
-  );
+  return findSiteMentions(text).map((site) => ({ name: site.name }));
 }
 
 export function inferSiteFromSource(source) {
@@ -277,6 +427,34 @@ export function getTopologyNeighbors(siteName) {
   );
 }
 
+export function getSiteDependencyContext(siteName) {
+  return buildSiteDependencyContext(canonicalSiteName(siteName) || siteName);
+}
+
+export function getLinkDependencyContext(siteA, siteB) {
+  return buildLinkDependencyContext(
+    canonicalSiteName(siteA) || siteA,
+    canonicalSiteName(siteB) || siteB
+  );
+}
+
+export function getInfrastructureContext(value = {}) {
+  const text = getInterfaceText(value);
+  const sourceSite = value.sourceSite || inferSiteFromSource(value.source);
+  const knownSites = [
+    ...(Array.isArray(value.knownSites) ? value.knownSites : []),
+    ...(Array.isArray(value.siteHints) ? value.siteHints : []),
+    ...findKnownLoopbacks(`${text} ${value.remoteIp || ''}`),
+    ...findKnownSiteNames(text)
+  ];
+
+  return buildDependencyContext({
+    sourceSite,
+    knownSites: uniqueSites(knownSites),
+    text
+  });
+}
+
 export function enrichMessageWithSiteHints(message) {
   const sourceSite = inferSiteFromSource(message.source);
   const interfaceContext = classifyInterfaceContext(message);
@@ -301,6 +479,11 @@ export function enrichMessageWithSiteHints(message) {
     knownSites,
     topologyNeighbors,
     interfaceContext,
+    infrastructureContext: getInfrastructureContext({
+      ...message,
+      sourceSite,
+      knownSites
+    }),
     knownPath:
       sourceSite && remoteSite
         ? {

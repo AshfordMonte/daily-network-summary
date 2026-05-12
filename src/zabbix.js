@@ -4,6 +4,7 @@ import {
   classifyInterfaceContext,
   findKnownLoopbacks,
   findKnownSiteNames,
+  getInfrastructureContext,
   inferSiteFromSource
 } from './site-map.js';
 
@@ -168,6 +169,11 @@ function normalizeEvent(event, source) {
   const tags = getTags(event);
   const siteHints = getSiteHints(event, hostNames, tags);
   const primaryHost = getPrimaryHostName(hostNames);
+  const interfaceContext = classifyInterfaceContext({
+    name: event.name || event.relatedObject?.description,
+    opdata: event.opdata,
+    hostNames
+  });
 
   return {
     eventId: event.eventid,
@@ -187,10 +193,13 @@ function normalizeEvent(event, source) {
     suppressed: event.suppressed === '1',
     tags,
     siteHints,
-    interfaceContext: classifyInterfaceContext({
+    interfaceContext,
+    infrastructureContext: getInfrastructureContext({
       name: event.name || event.relatedObject?.description,
       opdata: event.opdata,
-      hostNames
+      hostNames,
+      siteHints,
+      interfaceContext
     })
   };
 }

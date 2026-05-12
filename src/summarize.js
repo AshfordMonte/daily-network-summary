@@ -27,6 +27,10 @@ Context:
 - FCS, CRC, frame-check, RX/TX, input, and output errors are interface/link-layer errors. Treat repeated counts as Wireless / Backhaul signal, not Device Health.
 - Existing real-time Slack alerts already handle urgent BGP and OSPF events.
 - This report is a daily morning digest.
+- infrastructureContext describes the physical site tree. Use it as context for possible related sites, not as proof of impact by itself.
+- infrastructureContext.link.branchSites is the downstream branch behind a physical parent/child site link. Prefer mentioning downstream impact only when matching symptoms exist; otherwise use it quietly as context.
+- The physical topology is currently tree-shaped, so parent/child site relationships can help interpret tower/backhaul symptoms.
+- Customer access events such as Tarana, Radwin, Blinq, Telrad, and OLT should stay local to the named site/access device unless the report data also shows upstream or site-wide symptoms.
 - Do not exaggerate impact.
 - Do not claim an outage unless the logs clearly support it.
 - Mention power, weather/RF interference, and tower reachability only when they are tied to a specific repeated backhaul/radio event. Phrase them as possible checks, not proven root causes.
@@ -44,6 +48,7 @@ Focus on:
 - correlations between OSPF drops and wireless backhaul/interface flaps at tower sites
 - daily changed Zabbix events first; longstandingActive Zabbix problems only when they are high/disaster severity or meaningful radio/backhaul health context
 - knownPath and knownSites fields when present; use those to translate loopback IPs into site names
+- infrastructureContext when present; use it to understand physical site relationships and downstream branches
 - interfaceContext when present; use it to distinguish customer-facing access sectors/OLTs from tower/office backhauls
 - displayHost, primaryHost, hostNames, hostIdentities, and siteHints on Zabbix events; use the most specific device/site name available
 - topologyNeighbors when present; use them only as background topology context, not as proof that the neighbor had an outage
@@ -82,7 +87,7 @@ Window: \`<displayWindow.from> to <displayWindow.to>\`
 - Put login failures, authentication failures, suspicious management access, and config/admin changes here.
 
 *Other Notable Events*
-- 0 to 1 bullets for operationally useful events that do not fit the sections above, such as firewall script errors or address-list/script failures.
+- 0 to 1 bullets for operationally useful events that do not fit the sections above, such as firewall script errors, address-list/script failures, or completed backup/script jobs.
 - If there are no such events, omit this section entirely.
 
 *Most Active Devices*
@@ -111,10 +116,12 @@ Formatting rules:
 - Mention a Graylog/Zabbix relationship only when both clearly describe the same site, device, interface, or backhaul event.
 - Authentication/login failures belong in Security / Admin, not Device Health.
 - Firewall script errors and address-list/script failures belong in Other Notable Events unless they are clearly part of a config/admin change.
+- Successful backup/script completion events belong in Other Notable Events when present and not outweighed by a more important unrelated event.
 - Do not add standalone interpretation bullets like "treat power/weather/RF as likely causes to check." Only mention those checks inside a bullet about a specific event if useful.
 - Treat zabbix.events as new/changed problems in the report window. Use them mainly in Device Health or Wireless / Backhaul.
 - Treat zabbix.longstandingActive as chronic background context. Do not headline it unless it is high/disaster severity or a meaningful radio/backhaul health issue.
 - Do not say "multiple longstanding Zabbix warnings remain" unless one of those warnings is important enough to name specifically.
+- When summarizing longstanding radio/backhaul warnings, name the affected device, site, or link when available; otherwise keep the wording generic and avoid implying customer impact.
 - Do not dump every Zabbix problem; summarize only the Zabbix events that are operationally useful for the digest.
 - Bold device names, site names, and important interface names with Slack mrkdwn.
 - For site-to-site or device-to-device relationships, use exactly *Site A* :left_right_arrow: *Site B* when it improves scanning.

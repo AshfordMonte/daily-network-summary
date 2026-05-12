@@ -6,7 +6,7 @@ const CATEGORY_PATTERNS = {
   routing: [
     /\bbgp\b/i,
     /\bospf\b/i,
-    /\broute(?:r|d|s|ing)?\b/i,
+    /\broute(?:d|s|ing)?\b/i,
     /\badjacenc(?:y|ies)\b/i,
     /\bneighbor\b/i,
     /\bhold timer\b/i
@@ -159,6 +159,46 @@ function mergeStrings(existingValues = [], newValues = []) {
   return [...new Set([...existingValues, ...newValues].filter(Boolean))];
 }
 
+function chooseInfrastructureContext(existingContext, newContext) {
+  if (!existingContext) {
+    return newContext || null;
+  }
+
+  if (!newContext) {
+    return existingContext;
+  }
+
+  if (!existingContext.link && newContext.link) {
+    return newContext;
+  }
+
+  return existingContext;
+}
+
+function shouldIncludeInfrastructureContext(category, group) {
+  if (!group.infrastructureContext) {
+    return false;
+  }
+
+  if (category === 'security_admin' || category === 'unknown') {
+    return false;
+  }
+
+  return group.categories.some((groupCategory) =>
+    ['routing', 'device_health', 'interface'].includes(groupCategory)
+  );
+}
+
+function shouldIncludeTopologyContext(category, group) {
+  return (
+    shouldIncludeInfrastructureContext(category, group) ||
+    (category !== 'security_admin' &&
+      category !== 'unknown' &&
+      Array.isArray(group.topologyNeighbors) &&
+      group.topologyNeighbors.length > 0)
+  );
+}
+
 function classifySeverity(text, categories) {
   if (matchesAny(text, HIGH_SEVERITY_PATTERNS)) {
     return 'high';
@@ -289,6 +329,10 @@ export function buildAggregate(messages, config = {}) {
       existingGroup.knownPath = existingGroup.knownPath || message.knownPath || null;
       existingGroup.interfaceContext =
         existingGroup.interfaceContext || message.interfaceContext || null;
+      existingGroup.infrastructureContext = chooseInfrastructureContext(
+        existingGroup.infrastructureContext,
+        message.infrastructureContext
+      );
       existingGroup.topologyNeighbors = mergeStrings(
         existingGroup.topologyNeighbors,
         message.topologyNeighbors
@@ -313,6 +357,7 @@ export function buildAggregate(messages, config = {}) {
       knownSites: message.knownSites || [],
       knownPath: message.knownPath || null,
       interfaceContext: message.interfaceContext || null,
+      infrastructureContext: message.infrastructureContext || null,
       topologyNeighbors: message.topologyNeighbors || [],
       rawMessages: new Set([compactMessage]),
       count: 1
@@ -342,7 +387,12 @@ export function buildAggregate(messages, config = {}) {
         knownSites: group.knownSites,
         knownPath: group.knownPath,
         interfaceContext: group.interfaceContext,
-        topologyNeighbors: group.topologyNeighbors,
+        infrastructureContext: shouldIncludeInfrastructureContext(category, group)
+          ? group.infrastructureContext
+          : null,
+        topologyNeighbors: shouldIncludeTopologyContext(category, group)
+          ? group.topologyNeighbors
+          : [],
         count: group.count
       });
       eventEntryCount += 1;
@@ -366,7 +416,16 @@ export function buildAggregate(messages, config = {}) {
       knownSites: group.knownSites,
       knownPath: group.knownPath,
       interfaceContext: group.interfaceContext,
-      topologyNeighbors: group.topologyNeighbors,
+      infrastructureContext: group.categories.some((groupCategory) =>
+        ['routing', 'device_health', 'interface'].includes(groupCategory)
+      )
+        ? group.infrastructureContext
+        : null,
+      topologyNeighbors: group.categories.some((groupCategory) =>
+        ['routing', 'device_health', 'interface'].includes(groupCategory)
+      )
+        ? group.topologyNeighbors
+        : [],
       count: group.count
     }));
 
