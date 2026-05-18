@@ -7,6 +7,12 @@ import { loadConfig } from './config.js';
 import { buildAggregate } from './classify.js';
 import { formatSlackMessage } from './format.js';
 import { DEFAULT_GRAYLOG_FIELDS, searchGraylogMessages } from './graylog.js';
+import {
+  annotateAggregateWithHistory,
+  createHistoryRecord,
+  loadReportHistory,
+  saveReportHistory
+} from './memory.js';
 import { getMockMessages, getMockZabbixContext } from './mock-data.js';
 import { calculateReportWindow, formatReportWindowForDisplay } from './report-window.js';
 import { DEFAULT_SEARCH_QUERY } from './search-query.js';
@@ -22,6 +28,8 @@ function emptyZabbixContext(enabled = false) {
     longstandingActive: [],
     totals: {
       fetched: 0,
+      fetchedIncludingFiltered: 0,
+      decommissionedFiltered: 0,
       events: 0,
       changed: 0,
       changedSent: 0,
@@ -59,6 +67,41 @@ async function loadZabbixContext(config, window) {
       unavailable: true,
       error: error.message
     };
+  }
+}
+
+async function loadHistoryContext(config) {
+  if (!config.history.enabled) {
+    return [];
+  }
+
+  try {
+    return await loadReportHistory(config.history.path, {
+      retentionDays: config.history.retentionDays
+    });
+  } catch (error) {
+    console.warn(`[graylog-ai-digest] History warning: ${error.message}`);
+    return [];
+  }
+}
+
+async function saveHistoryContext(config, historyRecords, aggregate) {
+  if (!config.history.enabled) {
+    return;
+  }
+
+  try {
+    const nextRecords = await saveReportHistory(
+      config.history.path,
+      historyRecords,
+      createHistoryRecord(aggregate),
+      {
+        retentionDays: config.history.retentionDays
+      }
+    );
+    console.log(`[graylog-ai-digest] History records saved: ${nextRecords.length}`);
+  } catch (error) {
+    console.warn(`[graylog-ai-digest] History save warning: ${error.message}`);
   }
 }
 
@@ -102,6 +145,15 @@ export async function main() {
     displayWindow
   });
   aggregate.zabbix = await loadZabbixContext(config, window);
+  const historyRecords = await loadHistoryContext(config);
+
+  if (config.history.enabled) {
+    annotateAggregateWithHistory(aggregate, historyRecords);
+  } else {
+    aggregate.trendMemory = {
+      enabled: false
+    };
+  }
 
   console.log(`[graylog-ai-digest] Raw messages: ${aggregate.totals.rawMessages}`);
   console.log(`[graylog-ai-digest] Analyzed messages: ${aggregate.totals.analyzedMessages}`);
@@ -111,12 +163,26 @@ export async function main() {
   console.log(
     `[graylog-ai-digest] Zabbix changed events: ${aggregate.zabbix.totals.changedSent}/${aggregate.zabbix.totals.changed} active=${aggregate.zabbix.totals.active}, resolved=${aggregate.zabbix.totals.resolved}, highOrWorse=${aggregate.zabbix.totals.highOrWorse}, longstandingActiveSent=${aggregate.zabbix.totals.longstandingActiveSent}/${aggregate.zabbix.totals.longstandingActive}`
   );
+  if (
+    aggregate.totals.decommissionedFiltered > 0 ||
+    aggregate.zabbix.totals.decommissionedFiltered > 0
+  ) {
+    console.log(
+      `[graylog-ai-digest] Decommissioned events filtered: graylog=${aggregate.totals.decommissionedFiltered}, zabbix=${aggregate.zabbix.totals.decommissionedFiltered}`
+    );
+  }
+  if (aggregate.trendMemory?.enabled) {
+    console.log(
+      `[graylog-ai-digest] History loaded: ${aggregate.trendMemory.recordsLoaded} records; trends new=${aggregate.trendMemory.counts.new}, recurring=${aggregate.trendMemory.counts.recurring}, chronic=${aggregate.trendMemory.counts.chronicUnchanged}`
+    );
+  }
 
   const summary = await summarizeNetworkEvents(aggregate, config.openai);
   const slackMessage = formatSlackMessage(summary);
   const slackResult = await postToSlack(slackMessage, config.slackWebhookUrl);
 
   console.log(`[graylog-ai-digest] Slack post result: ${slackResult.status}`);
+  await saveHistoryContext(config, historyRecords, aggregate);
 }
 
 const isDirectRun = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

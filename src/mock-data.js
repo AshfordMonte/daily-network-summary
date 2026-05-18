@@ -110,6 +110,8 @@ export function getMockZabbixContext(from, to) {
     },
     totals: {
       fetched: 3,
+      fetchedIncludingFiltered: 3,
+      decommissionedFiltered: 0,
       events: 2,
       changed: 2,
       changedSent: 2,

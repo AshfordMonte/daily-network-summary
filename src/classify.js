@@ -292,7 +292,8 @@ export function buildAggregate(messages, config = {}) {
       high: 0,
       medium: 0,
       low: 0,
-      noise: 0
+      noise: 0,
+      decommissionedFiltered: 0
     },
     categories: createEmptyCategories(),
     topSources: [],
@@ -306,6 +307,12 @@ export function buildAggregate(messages, config = {}) {
   // waste the OpenAI payload budget.
   for (const message of messages) {
     const source = message.source || 'unknown';
+
+    if (message.infrastructureContext?.decommissioned) {
+      aggregate.totals.decommissionedFiltered += 1;
+      continue;
+    }
+
     sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1);
 
     const classification = classifyMessage(message);

@@ -15,6 +15,7 @@ pnpm-debug.log*
 logs/
 tmp/
 tmp-*/
+.data/
 
 # Local Dude / Zabbix / Graylog exports and database backups
 dude-*

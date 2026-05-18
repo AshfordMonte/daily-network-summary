@@ -31,6 +31,10 @@ Context:
 - infrastructureContext.link.branchSites is the downstream branch behind a physical parent/child site link. Prefer mentioning downstream impact only when matching symptoms exist; otherwise use it quietly as context.
 - The physical topology is currently tree-shaped, so parent/child site relationships can help interpret tower/backhaul symptoms.
 - Customer access events such as Tarana, Radwin, Blinq, Telrad, and OLT should stay local to the named site/access device unless the report data also shows upstream or site-wide symptoms.
+- trendMemory and per-event trend fields come from local history, currently retained for about 30 days. Use them to distinguish new, recurring, and chronic unchanged issues.
+- Treat trend.status="new" as more noteworthy when the event is operationally meaningful.
+- Treat trend.status="recurring" as useful context for repeated device/link/site problems.
+- Treat trend.status="chronic_unchanged" as background unless it is high/disaster severity, newly relevant to today's events, or the only meaningful health risk in the report.
 - Do not exaggerate impact.
 - Do not claim an outage unless the logs clearly support it.
 - Mention power, weather/RF interference, and tower reachability only when they are tied to a specific repeated backhaul/radio event. Phrase them as possible checks, not proven root causes.
@@ -49,6 +53,7 @@ Focus on:
 - daily changed Zabbix events first; longstandingActive Zabbix problems only when they are high/disaster severity or meaningful radio/backhaul health context
 - knownPath and knownSites fields when present; use those to translate loopback IPs into site names
 - infrastructureContext when present; use it to understand physical site relationships and downstream branches
+- trend fields when present; use them to avoid repeatedly headlining unchanged chronic items
 - interfaceContext when present; use it to distinguish customer-facing access sectors/OLTs from tower/office backhauls
 - displayHost, primaryHost, hostNames, hostIdentities, and siteHints on Zabbix events; use the most specific device/site name available
 - topologyNeighbors when present; use them only as background topology context, not as proof that the neighbor had an outage
@@ -122,6 +127,7 @@ Formatting rules:
 - Treat zabbix.longstandingActive as chronic background context. Do not headline it unless it is high/disaster severity or a meaningful radio/backhaul health issue.
 - Do not say "multiple longstanding Zabbix warnings remain" unless one of those warnings is important enough to name specifically.
 - When summarizing longstanding radio/backhaul warnings, name the affected device, site, or link when available; otherwise keep the wording generic and avoid implying customer impact.
+- If trendMemory says an item is chronic_unchanged, prefer shorter wording such as "still active" and do not let it crowd out new or recurring changed events.
 - Do not dump every Zabbix problem; summarize only the Zabbix events that are operationally useful for the digest.
 - Bold device names, site names, and important interface names with Slack mrkdwn.
 - For site-to-site or device-to-device relationships, use exactly *Site A* :left_right_arrow: *Site B* when it improves scanning.

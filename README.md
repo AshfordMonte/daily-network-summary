@@ -57,6 +57,10 @@ ZABBIX_PROBLEM_LIMIT=200
 
 OPENAI_REASONING_EFFORT=minimal
 MOCK_MODE=false
+
+REPORT_HISTORY_ENABLED=true
+REPORT_HISTORY_DAYS=30
+REPORT_HISTORY_PATH=.data/report-history.jsonl
 ```
 
 Use `MOCK_MODE=true` if you want to test OpenAI and Slack without querying Graylog.
@@ -75,6 +79,10 @@ npm run dev
 
 The script runs once, posts to Slack, and exits.
 
+By default, the script keeps a small local JSONL history under `.data/` so the
+digest can tell new, recurring, and chronic unchanged issues apart. The history
+stores compact event fingerprints, not raw Graylog messages.
+
 ## Notes
 
 Graylog API versions vary. The endpoint is kept near the top of `src/graylog.js` so it is easy to adjust if needed.
@@ -86,3 +94,7 @@ Classification rules live in `src/classify.js`. The patterns are intentionally s
 Topology and interface-role hints live in `src/site-map.js`. Radwin, Tarana, Blinq, Telrad, and OLT are treated as customer-facing access. BH, SIAE, p2p, ptp, 18 GHz, 60 GHz, ALFOplus, and obvious `to-site` names are treated as backhaul context.
 
 The main report prompt lives in `src/summarize.js`.
+
+Trend memory lives in `src/memory.js`. It is intentionally local and lightweight;
+delete `.data/report-history.jsonl` if you ever want to reset what the digest
+considers recurring.

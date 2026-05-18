@@ -10,11 +10,23 @@ const DEFAULTS = {
   ZABBIX_PROBLEM_LIMIT: 200,
   OPENAI_MODEL: 'gpt-4.1-mini',
   GRAYLOG_TIMEZONE: 'America/Chicago',
-  REPORT_TITLE: 'Daily Network Syslog Summary'
+  REPORT_TITLE: 'Daily Network Syslog Summary',
+  REPORT_HISTORY_ENABLED: true,
+  REPORT_HISTORY_DAYS: 30,
+  REPORT_HISTORY_PATH: '.data/report-history.jsonl'
 };
 
 function parseBoolean(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+}
+
+function parseBooleanEnv(name, fallback = false) {
+  const rawValue = process.env[name];
+  if (rawValue === undefined || rawValue === '') {
+    return fallback;
+  }
+
+  return parseBoolean(rawValue);
 }
 
 function parsePositiveInteger(name, fallback) {
@@ -64,7 +76,7 @@ function parseStreamIds(value) {
 }
 
 export function loadConfig() {
-  const mockMode = parseBoolean(process.env.MOCK_MODE);
+  const mockMode = parseBooleanEnv('MOCK_MODE');
 
   // Mock mode still requires OpenAI and Slack because it skips only Graylog/Zabbix.
   const config = {
@@ -85,12 +97,20 @@ export function loadConfig() {
       streamIds: parseStreamIds(process.env.GRAYLOG_STREAM_IDS)
     },
     zabbix: {
-      enabled: parseBoolean(process.env.ZABBIX_ENABLED),
+      enabled: parseBooleanEnv('ZABBIX_ENABLED'),
       url: optionalEnv('ZABBIX_URL'),
       apiToken: optionalEnv('ZABBIX_API_TOKEN'),
       problemLimit: parsePositiveInteger(
         'ZABBIX_PROBLEM_LIMIT',
         DEFAULTS.ZABBIX_PROBLEM_LIMIT
+      )
+    },
+    history: {
+      enabled: parseBooleanEnv('REPORT_HISTORY_ENABLED', DEFAULTS.REPORT_HISTORY_ENABLED),
+      path: optionalEnv('REPORT_HISTORY_PATH', DEFAULTS.REPORT_HISTORY_PATH),
+      retentionDays: parsePositiveInteger(
+        'REPORT_HISTORY_DAYS',
+        DEFAULTS.REPORT_HISTORY_DAYS
       )
     },
     openai: {

@@ -63,6 +63,22 @@ export const SITE_DEPENDENCY_TREE = {
   Southold: ['Grape Creek']
 };
 
+export const DECOMMISSIONED_INFRASTRUCTURE = [
+  {
+    id: 'roy-jcwt-legacy-wireless-backhaul',
+    name: 'Roy <-> JCWT legacy wireless backhaul',
+    sites: ['Roy', 'JCWT'],
+    patterns: [
+      /\bjc[-_\s]?wt[-_\s]?(?:to|toward)[-_\s]?roy\b/i,
+      /\broy[-_\s]?(?:to|toward)[-_\s]?jc[-_\s]?wt\b/i,
+      /\bjcwt[-_\s]?roy\b/i,
+      /\broy[-_\s]?jcwt\b/i,
+      /\bwater\s*tower\b.*\broy\b/i,
+      /\broy\b.*\bwater\s*tower\b/i
+    ]
+  }
+];
+
 const SITE_ALIASES = {
   JCMain: 'JC Main',
   'JC-Main': 'JC Main',
@@ -275,6 +291,10 @@ function buildDependencyContext({ sourceSite, knownSites = [], text = '' }) {
   const remoteSite = matchedSites.find((candidate) => candidate !== site) || null;
   const link = buildLinkDependencyContext(site, remoteSite);
   const siteContext = buildSiteDependencyContext(site);
+  const decommissioned = getDecommissionedInfrastructureContext({
+    matchedSites,
+    text
+  });
 
   if (!siteContext && !link && matchedSites.length === 0) {
     return null;
@@ -283,8 +303,25 @@ function buildDependencyContext({ sourceSite, knownSites = [], text = '' }) {
   return {
     ...siteContext,
     matchedSites,
-    link
+    link,
+    decommissioned
   };
+}
+
+function getDecommissionedInfrastructureContext({ matchedSites = [], text = '' }) {
+  const matchedSiteSet = new Set(matchedSites);
+  const match = DECOMMISSIONED_INFRASTRUCTURE.find((item) => {
+    const hasAllSites = item.sites.every((site) => matchedSiteSet.has(site));
+    return hasAllSites && item.patterns.some((pattern) => pattern.test(text));
+  });
+
+  return match
+    ? {
+        id: match.id,
+        name: match.name,
+        sites: match.sites
+      }
+    : null;
 }
 
 function matchInterfacePattern(text, patterns) {
@@ -453,6 +490,12 @@ export function getInfrastructureContext(value = {}) {
     knownSites: uniqueSites(knownSites),
     text
   });
+}
+
+export function isDecommissionedInfrastructure(value = {}) {
+  return Boolean(
+    value.infrastructureContext?.decommissioned || getInfrastructureContext(value)?.decommissioned
+  );
 }
 
 export function enrichMessageWithSiteHints(message) {

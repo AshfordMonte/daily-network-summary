@@ -250,6 +250,10 @@ function dedupeEvents(events) {
   return deduped;
 }
 
+function isDecommissionedEvent(event) {
+  return Boolean(event.infrastructureContext?.decommissioned);
+}
+
 export class ZabbixClient {
   constructor({ url, apiToken }) {
     this.url = normalizeZabbixUrl(url);
@@ -335,10 +339,12 @@ export async function fetchZabbixContext({ url, apiToken, from, to, limit = 200 
 
   // Changed events drive the report. Longstanding active items are kept small
   // so chronic warnings do not drown out what changed in this window.
-  const allEvents = dedupeEvents([
+  const allFetchedEvents = dedupeEvents([
     ...problems.map((event) => normalizeEvent(event, 'problem.get')),
     ...problemEvents.map((event) => normalizeEvent(event, 'event.get'))
   ]).sort(sortBySeverityThenTime);
+  const decommissionedEvents = allFetchedEvents.filter(isDecommissionedEvent);
+  const allEvents = allFetchedEvents.filter((event) => !isDecommissionedEvent(event));
 
   const allChangedEvents = allEvents.filter((event) =>
     changedInWindow(event, windowStart, windowEnd)
@@ -358,6 +364,8 @@ export async function fetchZabbixContext({ url, apiToken, from, to, limit = 200 
     },
     totals: {
       fetched: allEvents.length,
+      fetchedIncludingFiltered: allFetchedEvents.length,
+      decommissionedFiltered: decommissionedEvents.length,
       events: changedEvents.length,
       changed: allChangedEvents.length,
       changedSent: changedEvents.length,
