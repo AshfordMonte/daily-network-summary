@@ -81,6 +81,7 @@ function styleSectionHeading(line) {
 
 function fixArrowPlacement(line) {
   return line
+    .replace(/\s*:left_right_arrow:\s*/g, ' :left_right_arrow: ')
     .replace(/\b(between|on|at|with)\s+:left_right_arrow:\s+/gi, '$1 ')
     .replace(/^-\s+:left_right_arrow:\s+/, '- ')
     .replace(/\s+:left_right_arrow:\s+:left_right_arrow:\s+/g, ' :left_right_arrow: ');

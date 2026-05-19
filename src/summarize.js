@@ -35,6 +35,7 @@ Context:
 - Treat trend.status="new" as more noteworthy when the event is operationally meaningful.
 - Treat trend.status="recurring" as useful context for repeated device/link/site problems.
 - Treat trend.status="chronic_unchanged" as background unless it is high/disaster severity, newly relevant to today's events, or the only meaningful health risk in the report.
+- If routing/interface flaps line up with config changes, admin access, package updates, reboots, or restarts on the same device or named peer, frame them as likely admin/maintenance-related. Do not suggest RF, power, or tower checks unless there is independent repeated wireless/backhaul evidence.
 - Do not exaggerate impact.
 - Do not claim an outage unless the logs clearly support it.
 - Mention power, weather/RF interference, and tower reachability only when they are tied to a specific repeated backhaul/radio event. Phrase them as possible checks, not proven root causes.
